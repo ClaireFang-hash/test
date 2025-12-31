@@ -3,55 +3,122 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>测试弹窗问题 - 修复版1</title>
+  <title>测试弹窗问题 - 修复版（按钮触发）</title>
   <style>
-    :root {
-      --modal-z: 2000;
+    :root{
       --mask-z: 1999;
+      --modal-z: 2000;
       --radius: 12px;
     }
 
     * { box-sizing: border-box; }
     html, body { height: 100%; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
-      "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      background: #f6f7fb;
+      color: #111;
+    }
 
-    /* 打开弹窗时锁背景滚动 */
+    /* ===== 打开弹窗时锁背景滚动 ===== */
     body.modal-open { overflow: hidden; }
 
-    /* ===== 遮罩：固定定位覆盖全屏 ===== */
+    /* ===== 页面演示布局（你可以替换成你的列表页） ===== */
+    .page {
+      padding: 18px 20px;
+      min-height: 100%;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .hint {
+      font-size: 13px;
+      color: #666;
+      margin: 6px 0 14px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr 280px;
+      gap: 16px;
+      align-items: start;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e9e9ee;
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 520px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.03);
+    }
+    .card h4 {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+    .placeholder {
+      height: 620px;
+      border-radius: 12px;
+      border: 1px dashed #ddd;
+      background: linear-gradient(#fafafa, #f1f1f1);
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    /* ===== 按钮 ===== */
+    .btn {
+      border: 1px solid #d9d9df;
+      background: #fff;
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      user-select: none;
+    }
+    .btn:hover { background: #f4f5f8; }
+    .btn.primary {
+      border-color: #2f7dff;
+      background: #2f7dff;
+      color: #fff;
+    }
+    .btn.primary:hover { filter: brightness(.96); }
+
+    /* =========================================================
+       弹窗：挂 body、fixed 居中、默认不显示（关键！）
+       ========================================================= */
+
+    /* 遮罩：默认隐藏 */
     .modal-mask {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.45);
+      background: rgba(0,0,0,.45);
       z-index: var(--mask-z);
-      display: none;
+      display: none;          /* ✅ 默认不显示 */
+      pointer-events: auto;
     }
-    .modal-mask.is-open { display: block; }
+    .modal-mask.is-open { display: block; } /* ✅ 打开才显示 */
 
-    /* ===== 弹窗容器：固定定位，grid 居中，避免受父容器影响 ===== */
+    /* 弹窗容器：默认隐藏 */
     .modal-wrap {
       position: fixed;
       inset: 0;
       z-index: var(--modal-z);
-      display: none;
-
-      /* 居中 */
-      display: grid;
-      place-items: center;
-
-      /* 小屏留白 */
+      display: none;          /* ✅ 默认不显示 */
       padding: 24px 16px;
+      place-items: center;
     }
-    .modal-wrap.is-open { display: grid; }
+    .modal-wrap.is-open { display: grid; }  /* ✅ 打开才显示 */
 
-    /* ===== 弹窗主体 ===== */
     .modal {
-      width: min(980px, 100%);
+      width: min(1100px, 100%);
       background: #fff;
       border-radius: var(--radius);
-      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
-      overflow: hidden; /* 保证圆角 */
+      box-shadow: 0 18px 60px rgba(0,0,0,.25);
+      overflow: hidden;
       outline: none;
     }
 
@@ -61,15 +128,12 @@
       justify-content: space-between;
       padding: 14px 16px;
       border-bottom: 1px solid #eee;
-      background: #fff;
     }
-
     .modal-title {
+      margin: 0;
       font-size: 16px;
       font-weight: 700;
-      margin: 0;
     }
-
     .modal-close {
       border: none;
       background: transparent;
@@ -81,12 +145,11 @@
     }
     .modal-close:hover { background: #f3f3f3; }
 
-    /* 关键：内容区最大高度 + 滚动，防止弹窗撑出屏幕 */
+    /* 内容区：限制高度并滚动，避免超出屏幕 */
     .modal-body {
-      max-height: calc(100vh - 160px);
-      overflow: auto;
       padding: 16px;
-      background: #fff;
+      max-height: calc(100vh - 170px);
+      overflow: auto;
     }
 
     .modal-footer {
@@ -98,180 +161,187 @@
       background: #fff;
     }
 
-    .btn {
-      border: 1px solid #ddd;
-      background: #fff;
-      padding: 8px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .btn:hover { background: #f7f7f7; }
-    .btn.primary {
-      border-color: #2f7dff;
-      background: #2f7dff;
-      color: #fff;
-    }
-    .btn.primary:hover { filter: brightness(0.95); }
-
-    /* ====== 以下是示例页面内容（你可以删掉/替换成你的列表页） ====== */
-    .page {
-      padding: 20px;
-    }
-    .hint {
-      margin-top: 10px;
-      color: #666;
-      font-size: 13px;
-    }
-    .fake-layout {
-      margin-top: 16px;
-      display: grid;
-      grid-template-columns: 220px 1fr 260px;
-      gap: 16px;
-      min-height: 600px;
-    }
-    .card {
-      border: 1px solid #e7e7e7;
+    /* ===== 弹窗内表单示例（你可替换成自己的内容） ===== */
+    .section {
+      border: 1px solid #efeff4;
       border-radius: 12px;
-      background: #fff;
       padding: 12px;
-      min-height: 200px;
+      margin-bottom: 12px;
     }
-    .card-title {
+    .section-title {
       font-weight: 700;
-      margin: 0 0 8px 0;
+      margin: 0 0 10px;
       font-size: 14px;
     }
-    .long {
-      height: 1200px;
-      background: linear-gradient(#fafafa, #f0f0f0);
-      border-radius: 12px;
-      border: 1px dashed #ddd;
+    label {
+      display: block;
+      font-size: 13px;
+      color: #333;
+      margin: 8px 0 6px;
     }
+    textarea, input {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 14px;
+      outline: none;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    input:focus, textarea:focus { border-color: #2f7dff; box-shadow: 0 0 0 3px rgba(47,125,255,.12); }
 
-    /* 小屏适配 */
-    @media (max-width: 900px) {
-      .fake-layout { grid-template-columns: 1fr; }
-    }
   </style>
 </head>
+
 <body>
-  <!-- ===== 示例页面 ===== -->
+  <!-- =================== 页面 =================== -->
   <div class="page">
-    <button class="btn primary" id="openBtn">打开弹窗</button>
-    <div class="hint">
-      修复点：弹窗/遮罩挂到 body（不放在列表容器里），fixed 居中，内容区滚动，z-index 提高。
+    <div class="topbar">
+      <button class="btn primary" id="openBtn" type="button">打开弹窗</button>
+      <button class="btn" id="resetBtn" type="button">重置页面演示</button>
     </div>
 
-    <div class="fake-layout">
+    <div class="hint">
+      说明：弹窗默认关闭；只有点击“打开弹窗”才会打开；支持 × / 取消 / 点击遮罩 / ESC 关闭。
+    </div>
+
+    <div class="layout">
       <div class="card">
-        <p class="card-title">左侧筛选</p>
-        <div class="long"></div>
+        <h4>左侧筛选</h4>
+        <div class="placeholder"></div>
       </div>
       <div class="card">
-        <p class="card-title">中间列表</p>
-        <div class="long"></div>
+        <h4>中间列表</h4>
+        <div class="placeholder"></div>
       </div>
       <div class="card">
-        <p class="card-title">右侧信息</p>
-        <div class="long"></div>
+        <h4>右侧信息</h4>
+        <div class="placeholder"></div>
       </div>
     </div>
   </div>
 
-  <!-- ===== 遮罩（直接放 body 下） ===== -->
-  <div class="modal-mask" id="modalMask"></div>
+  <!-- =================== 弹窗（挂在 body 下） =================== -->
+  <div class="modal-mask" id="modalMask" aria-hidden="true"></div>
 
-  <!-- ===== 弹窗（直接放 body 下） ===== -->
   <div class="modal-wrap" id="modalWrap" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="modal" tabindex="-1" id="modalPanel">
+    <div class="modal" id="modalPanel" tabindex="-1">
       <div class="modal-header">
         <h3 class="modal-title">测试弹窗</h3>
-        <button class="modal-close" id="closeBtn" aria-label="关闭">×</button>
+        <button class="modal-close" id="closeBtn" type="button" aria-label="关闭">×</button>
       </div>
 
       <div class="modal-body" id="modalBody">
-        <!-- ✅ 把你原来弹窗里的“联通/电信/手机号输入/表单”等内容，直接粘贴到这里即可 -->
+        <h3 style="margin:0 0 12px;">这里放你的弹窗表单内容</h3>
 
-        <h4 style="margin:0 0 12px 0;">这里放你的弹窗表单内容</h4>
+        <div class="section">
+          <div class="section-title">联通</div>
+          <label>消息内容</label>
+          <textarea placeholder="输入内容..."></textarea>
+          <label>消息后缀</label>
+          <input placeholder="例如：把收请回复R" />
+        </div>
 
-        <div style="display:grid; gap:12px;">
-          <div style="border:1px solid #eee; border-radius:12px; padding:12px;">
-            <strong>联通</strong>
-            <div style="margin-top:10px;">
-              <label>消息内容</label>
-              <textarea style="width:100%; min-height:100px; margin-top:6px; border:1px solid #ddd; border-radius:10px; padding:8px;"></textarea>
-            </div>
-          </div>
+        <div class="section">
+          <div class="section-title">电信</div>
+          <label>消息内容</label>
+          <textarea placeholder="输入内容..."></textarea>
+          <label>消息后缀</label>
+          <input placeholder="例如：把收请回复R" />
+        </div>
 
-          <div style="border:1px solid #eee; border-radius:12px; padding:12px;">
-            <strong>电信</strong>
-            <div style="margin-top:10px;">
-              <label>消息内容</label>
-              <textarea style="width:100%; min-height:260px; margin-top:6px; border:1px solid #ddd; border-radius:10px; padding:8px;"></textarea>
-            </div>
-          </div>
-
-          <div style="height: 700px; border:1px dashed #ddd; border-radius:12px; padding:12px; background:#fafafa;">
-            模拟长内容：内容很多时只滚动这个区域，弹窗不会超出屏幕。
+        <div class="section">
+          <div class="section-title">（演示）长内容区域</div>
+          <div style="height: 700px; border: 1px dashed #ddd; border-radius: 12px; background:#fafafa; padding: 12px;">
+            用来模拟你原页面里很多表单项：这里会在弹窗内部滚动，不会把弹窗顶出屏幕。
           </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button class="btn" id="cancelBtn">取消</button>
-        <button class="btn primary" id="okBtn">确认</button>
+        <button class="btn" id="cancelBtn" type="button">取消</button>
+        <button class="btn primary" id="okBtn" type="button">确认</button>
       </div>
     </div>
   </div>
 
   <script>
-    const wrap = document.getElementById('modalWrap');
-    const mask = document.getElementById('modalMask');
-    const openBtn = document.getElementById('openBtn');
-    const closeBtn = document.getElementById('closeBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const okBtn = document.getElementById('okBtn');
-    const panel = document.getElementById('modalPanel');
+    // ✅ 完整弹窗状态机：默认关闭，只能按钮打开，所有入口可关闭
+    window.addEventListener('DOMContentLoaded', () => {
+      const wrap = document.getElementById('modalWrap');
+      const mask = document.getElementById('modalMask');
+      const panel = document.getElementById('modalPanel');
 
-    function openModal() {
-      document.body.classList.add('modal-open');
-      wrap.classList.add('is-open');
-      mask.classList.add('is-open');
-      wrap.setAttribute('aria-hidden', 'false');
+      const openBtn = document.getElementById('openBtn');
+      const closeBtn = document.getElementById('closeBtn');
+      const cancelBtn = document.getElementById('cancelBtn');
+      const okBtn = document.getElementById('okBtn');
+      const resetBtn = document.getElementById('resetBtn');
 
-      // 聚焦弹窗，方便 ESC 关闭 / 可访问性
-      setTimeout(() => panel.focus(), 0);
-    }
-
-    function closeModal() {
-      document.body.classList.remove('modal-open');
-      wrap.classList.remove('is-open');
-      mask.classList.remove('is-open');
-      wrap.setAttribute('aria-hidden', 'true');
-    }
-
-    openBtn.addEventListener('click', openModal);
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-    okBtn.addEventListener('click', () => {
-      // TODO: 这里写你的确认逻辑
-      closeModal();
-    });
-
-    // 点击遮罩关闭
-    mask.addEventListener('click', closeModal);
-
-    // ESC 关闭
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && wrap.classList.contains('is-open')) {
-        closeModal();
+      // 基础校验：避免选择器失效导致“关不掉”
+      const must = [wrap, mask, panel, openBtn, closeBtn];
+      if (must.some(v => !v)) {
+        console.error('Modal init failed: missing required elements.');
+        return;
       }
-    });
 
-    // 阻止点击弹窗内部时冒泡到遮罩（如果你把点击关闭绑定在 wrap 上时需要）
-    // 这里我们绑定在 mask 上了，所以只是示例备用：
-    // panel.addEventListener('click', (e) => e.stopPropagation());
+      function isOpen() {
+        return wrap.classList.contains('is-open');
+      }
+
+      function openModal() {
+        document.body.classList.add('modal-open');
+        wrap.classList.add('is-open');
+        mask.classList.add('is-open');
+        wrap.setAttribute('aria-hidden', 'false');
+        mask.setAttribute('aria-hidden', 'false');
+
+        // 聚焦弹窗，保证 ESC 关闭可靠
+        setTimeout(() => panel.focus(), 0);
+      }
+
+      function closeModal() {
+        document.body.classList.remove('modal-open');
+        wrap.classList.remove('is-open');
+        mask.classList.remove('is-open');
+        wrap.setAttribute('aria-hidden', 'true');
+        mask.setAttribute('aria-hidden', 'true');
+      }
+
+      // ✅ 兜底：无论你是否误把 is-open 写进 HTML/CSS，这里都强制初始关闭
+      closeModal();
+
+      // ✅ 保留你“之前正常逻辑”：只有点击按钮才打开
+      openBtn.addEventListener('click', () => {
+        if (!isOpen()) openModal();
+      });
+
+      // ✅ 关闭：×、取消、遮罩、ESC 都能关
+      closeBtn.addEventListener('click', closeModal);
+      cancelBtn.addEventListener('click', closeModal);
+
+      okBtn.addEventListener('click', () => {
+        // TODO: 你原来的“确认”逻辑可以写在这里（提交表单/请求接口等）
+        closeModal();
+      });
+
+      // 点击遮罩关闭（注意：绑定在 mask，不会误伤弹窗内部点击）
+      mask.addEventListener('click', closeModal);
+
+      // ESC 关闭
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isOpen()) closeModal();
+      });
+
+      // 演示用：重置页面（无业务意义）
+      resetBtn.addEventListener('click', () => {
+        closeModal();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // 防误操作：阻止点击弹窗内部时触发遮罩关闭（当前绑定在 mask 上已不需要，但留着更稳）
+      panel.addEventListener('click', (e) => e.stopPropagation());
+    });
   </script>
 </body>
 </html>
