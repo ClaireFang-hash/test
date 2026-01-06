@@ -284,6 +284,64 @@
     }
     .select-row .select{ flex:1; }
 
+    /* Import searchable multi-select */
+    .label-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      margin: 0 0 6px;
+    }
+    .label-row label{ margin:0; }
+    .count-pill{
+      display:inline-flex;
+      align-items:center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #0f766e;
+      background: rgba(16,185,129,.10);
+      border: 1px solid rgba(16,185,129,.25);
+      white-space: nowrap;
+    }
+    .search-row{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+    .search-row .input{ flex: 1 1 220px; }
+    .result-box{
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background:#fff;
+      max-height: 180px;
+      overflow:auto;
+      padding: 10px;
+    }
+    .result-empty{
+      font-size: 12px;
+      color: var(--muted);
+      padding: 6px 2px;
+    }
+    .result-item{
+      display:flex;
+      align-items:flex-start;
+      gap: 10px;
+      padding: 6px 4px;
+      border-radius: 8px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .result-item:hover{ background:#f9fafb; }
+    .result-item input{ transform: translateY(2px); }
+    .result-text{
+      font-size: 13px;
+      color: #111827;
+      line-height: 1.35;
+    }
+
     .hint{
       margin-top: 10px;
       color: var(--muted);
@@ -504,27 +562,32 @@
       <div class="modal-body">
         <div class="form-grid">
           <div class="field">
-            <label>选择通道编码（多选）</label>
-            <div class="select-row">
-              <select id="import_channel_select" class="select">
-                <option value="" selected>请选择</option>
-              </select>
-              <button class="btn" id="import_add_channel">添加</button>
+            <div class="label-row">
+              <label for="import_channel_kw">选择通道编码（多选）</label>
+              <span class="count-pill" id="import_channel_count">已选 0</span>
             </div>
+            <div class="search-row">
+              <input id="import_channel_kw" class="input" placeholder="输入通道编码模糊查询（留空查询全部）" />
+              <button class="btn" id="import_channel_search">查询</button>
+              <button class="btn" id="import_channel_selectall">全选本次结果</button>
+              <button class="btn btn-danger" id="import_channel_clear">清空已选</button>
+            </div>
+            <div class="result-box" id="import_channel_results"></div>
             <div class="chips" id="import_channel_chips"></div>
           </div>
 
           <div class="field">
-            <label>选择账号（多选）</label>
-            <div class="select-row">
-              <select id="import_account_select" class="select">
-                <option value="" selected>请选择</option>
-                <option value="账号A">账号A</option>
-                <option value="账号B">账号B</option>
-                <option value="账号C">账号C</option>
-              </select>
-              <button class="btn" id="import_add_account">添加</button>
+            <div class="label-row">
+              <label for="import_account_kw">选择账号（多选）</label>
+              <span class="count-pill" id="import_account_count">已选 0</span>
             </div>
+            <div class="search-row">
+              <input id="import_account_kw" class="input" placeholder="输入账号名称模糊查询（留空查询全部）" />
+              <button class="btn" id="import_account_search">查询</button>
+              <button class="btn" id="import_account_selectall">全选本次结果</button>
+              <button class="btn btn-danger" id="import_account_clear">清空已选</button>
+            </div>
+            <div class="result-box" id="import_account_results"></div>
             <div class="chips" id="import_account_chips"></div>
           </div>
 
@@ -819,6 +882,9 @@
       editingId: null,
       importChannels: [],
       importAccounts: [],
+      importSources: { channels: [], accounts: [] },
+      importChannelResults: [],
+      importAccountResults: [],
       // test state
       test: {
         count: 0,
@@ -993,10 +1059,35 @@
     // --------------------------
     // Import flow (demo)
     // --------------------------
-    function initImportOptions(){
-      const channels = Array.from(new Set(state.rows.map(r => r.channelCode))).sort();
-      const sel = $("import_channel_select");
-      sel.innerHTML = `<option value="" selected>请选择</option>` + channels.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
+    function buildImportSources(){
+      const channelNameMap = {
+        "YZ": "扬州通道",
+        "DX": "电信通道",
+        "LT": "联通通道",
+        "YD": "移动通道",
+      };
+      const fromRows = Array.from(new Set(state.rows.map(r => r.channelCode))).sort();
+      const baseChannels = fromRows.map(code => ({
+        id: code,
+        code,
+        name: channelNameMap[code] || `${code}通道`,
+      }));
+      if(!baseChannels.some(x => x.id === "YD")){
+        baseChannels.push({ id:"YD", code:"YD", name:"移动通道" });
+      }
+
+      const accounts = [
+        { id:"10001", name:"账号A" },
+        { id:"10002", name:"账号B" },
+        { id:"10003", name:"账号C" },
+        { id:"20001", name:"商信-主账号" },
+        { id:"20002", name:"商信-行业线账号" },
+      ];
+
+      state.importSources = {
+        channels: baseChannels.sort((a,b) => a.code.localeCompare(b.code)),
+        accounts,
+      };
     }
 
     function renderChips(containerId, items, onRemove){
@@ -1005,10 +1096,10 @@
         el.innerHTML = `<span class="muted" style="font-size:12px;">未选择</span>`;
         return;
       }
-      el.innerHTML = items.map(v => `
+      el.innerHTML = items.map(it => `
         <span class="chip">
-          ${escapeHtml(v)}
-          <button title="移除" data-val="${escapeAttr(v)}">×</button>
+          ${escapeHtml(it.label)}
+          <button title="移除" data-val="${escapeAttr(it.key)}">×</button>
         </span>
       `).join("");
       el.querySelectorAll("button").forEach(btn => {
@@ -1016,35 +1107,142 @@
       });
     }
 
+    function uniquePush(arr, v){
+      if(!arr.includes(v)) arr.push(v);
+    }
+    function removeFromArr(arr, v){
+      return arr.filter(x => x !== v);
+    }
+    function getAccountLabel(id){
+      const a = state.importSources.accounts.find(x => x.id === id);
+      if(!a) return id;
+      return `${a.id} ${a.name}`;
+    }
+
+    function renderImportCounts(){
+      $("import_channel_count").textContent = `已选 ${state.importChannels.length}`;
+      $("import_account_count").textContent = `已选 ${state.importAccounts.length}`;
+    }
+    function renderImportChips(){
+      renderChips(
+        "import_channel_chips",
+        state.importChannels.map(id => ({ key:id, label:id })),
+        removeImportChannel
+      );
+      renderChips(
+        "import_account_chips",
+        state.importAccounts.map(id => ({ key:id, label:getAccountLabel(id) })),
+        removeImportAccount
+      );
+      renderImportCounts();
+    }
+
+    function renderImportResults(type){
+      const isChannel = type === "channel";
+      const kw = (isChannel ? $("import_channel_kw") : $("import_account_kw")).value.trim();
+      const results = isChannel ? state.importChannelResults : state.importAccountResults;
+      const selected = isChannel ? state.importChannels : state.importAccounts;
+      const box = isChannel ? $("import_channel_results") : $("import_account_results");
+
+      if(results.length === 0){
+        box.innerHTML = `<div class="result-empty">${kw ? "无匹配结果" : "请输入关键字并点击查询（留空查询全部）"}</div>`;
+        return;
+      }
+
+      box.innerHTML = results.map(item => {
+        const id = item.id;
+        const checked = selected.includes(id) ? "checked" : "";
+        const label = isChannel ? item.code : `${item.id} ${item.name}`;
+        return `
+          <label class="result-item">
+            <input type="checkbox" data-id="${escapeAttr(id)}" ${checked} />
+            <span class="result-text">${escapeHtml(label)}</span>
+          </label>
+        `;
+      }).join("");
+
+      box.querySelectorAll("input[type='checkbox']").forEach(input => {
+        input.addEventListener("change", () => {
+          const id = input.getAttribute("data-id");
+          const checked = input.checked;
+          if(isChannel){
+            state.importChannels = checked ? (uniquePush(state.importChannels, id), state.importChannels) : removeFromArr(state.importChannels, id);
+          }else{
+            state.importAccounts = checked ? (uniquePush(state.importAccounts, id), state.importAccounts) : removeFromArr(state.importAccounts, id);
+          }
+          renderImportChips();
+        });
+      });
+    }
+
+    function filterImportChannels(keyword){
+      const kw = keyword.trim();
+      const list = state.importSources.channels;
+      if(!kw) return list;
+      return list.filter(x => contains(x.code, kw));
+    }
+    function filterImportAccounts(keyword){
+      const kw = keyword.trim();
+      const list = state.importSources.accounts;
+      if(!kw) return list;
+      return list.filter(x => contains(x.name, kw));
+    }
+
+    function searchImportChannels(){
+      const kw = $("import_channel_kw").value.trim();
+      state.importChannelResults = filterImportChannels(kw);
+      renderImportResults("channel");
+    }
+    function searchImportAccounts(){
+      const kw = $("import_account_kw").value.trim();
+      state.importAccountResults = filterImportAccounts(kw);
+      renderImportResults("account");
+    }
+    function selectAllImportChannels(){
+      state.importChannelResults.forEach(it => uniquePush(state.importChannels, it.id));
+      renderImportChips();
+      renderImportResults("channel");
+    }
+    function selectAllImportAccounts(){
+      state.importAccountResults.forEach(it => uniquePush(state.importAccounts, it.id));
+      renderImportChips();
+      renderImportResults("account");
+    }
+    function clearImportChannels(){
+      state.importChannels = [];
+      renderImportChips();
+      renderImportResults("channel");
+    }
+    function clearImportAccounts(){
+      state.importAccounts = [];
+      renderImportChips();
+      renderImportResults("account");
+    }
+
     function openImport(){
-      initImportOptions();
+      buildImportSources();
       state.importChannels = [];
       state.importAccounts = [];
+      state.importChannelResults = [];
+      state.importAccountResults = [];
+      $("import_channel_kw").value = "";
+      $("import_account_kw").value = "";
       $("import_file").value = "";
-      renderChips("import_channel_chips", state.importChannels, removeImportChannel);
-      renderChips("import_account_chips", state.importAccounts, removeImportAccount);
+      renderImportChips();
+      searchImportChannels();
+      searchImportAccounts();
       openModal("importMask");
     }
 
-    function addImportChannel(){
-      const v = $("import_channel_select").value;
-      if(!v) return;
-      if(!state.importChannels.includes(v)) state.importChannels.push(v);
-      renderChips("import_channel_chips", state.importChannels, removeImportChannel);
+    function removeImportChannel(id){
+      state.importChannels = removeFromArr(state.importChannels, id);
+      renderImportChips();
+      renderImportResults("channel");
     }
-    function addImportAccount(){
-      const v = $("import_account_select").value;
-      if(!v) return;
-      if(!state.importAccounts.includes(v)) state.importAccounts.push(v);
-      renderChips("import_account_chips", state.importAccounts, removeImportAccount);
-    }
-    function removeImportChannel(v){
-      state.importChannels = state.importChannels.filter(x => x !== v);
-      renderChips("import_channel_chips", state.importChannels, removeImportChannel);
-    }
-    function removeImportAccount(v){
-      state.importAccounts = state.importAccounts.filter(x => x !== v);
-      renderChips("import_account_chips", state.importAccounts, removeImportAccount);
+    function removeImportAccount(id){
+      state.importAccounts = removeFromArr(state.importAccounts, id);
+      renderImportChips();
+      renderImportResults("account");
     }
 
     function submitImport(){
@@ -1065,7 +1263,7 @@
       alert(
         "已提交导入（演示）\n" +
         "通道编码：" + state.importChannels.join(", ") + "\n" +
-        "账号：" + state.importAccounts.join(", ") + "\n" +
+        "账号：" + state.importAccounts.map(getAccountLabel).join(", ") + "\n" +
         "文件：" + file.name
       );
       closeModal("importMask");
@@ -1255,8 +1453,18 @@
       });
 
       // import
-      $("import_add_channel").addEventListener("click", addImportChannel);
-      $("import_add_account").addEventListener("click", addImportAccount);
+      $("import_channel_search").addEventListener("click", searchImportChannels);
+      $("import_account_search").addEventListener("click", searchImportAccounts);
+      $("import_channel_selectall").addEventListener("click", selectAllImportChannels);
+      $("import_account_selectall").addEventListener("click", selectAllImportAccounts);
+      $("import_channel_clear").addEventListener("click", clearImportChannels);
+      $("import_account_clear").addEventListener("click", clearImportAccounts);
+      $("import_channel_kw").addEventListener("keydown", (e) => {
+        if(e.key === "Enter"){ e.preventDefault(); searchImportChannels(); }
+      });
+      $("import_account_kw").addEventListener("keydown", (e) => {
+        if(e.key === "Enter"){ e.preventDefault(); searchImportAccounts(); }
+      });
       $("import_submit").addEventListener("click", submitImport);
       $("download_tpl").addEventListener("click", () => {
         alert("示例：这里可替换为真实模板下载链接（后端提供文件地址）");
